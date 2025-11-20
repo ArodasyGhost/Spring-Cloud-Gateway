@@ -1,3 +1,77 @@
+server:
+  port: 8080 # Porta principal de acesso (Postman/Usuário)
+
 spring:
   application:
     name: api-gateway
+  # 2. Configuração do Gateway
+  cloud:
+    gateway:
+      default-filters:
+        # Garante que, se o serviço interno usar um prefixo base (@RequestMapping), o Gateway o encaminhe corretamente.
+        # Ex: Se a requisição for para /auth/login, o Gateway a envia para o Auth-Service em /auth/login.
+        - DeduceRoutePredicateFactory # Não precisa de Path=/api/service-name, apenas configura as rotas abaixo
+
+      routes:
+        # ----------------------------------------------------------------------
+        # ROTAS DE ORQUESTRAÇÃO (Orchestrator-Service)
+        # ----------------------------------------------------------------------
+        # Objetivo: Enviar /api/gateway/orchestrator/programas-completos
+        - id: orchestrator-service
+          uri: lb://orchestrator-service # Nome do serviço no Eureka
+          predicates:
+            - Path=/api/gateway/orchestrator/**
+          filters:
+            # Filtro essencial: Remove a parte '/api/gateway' para que o Orchestrator
+            # receba apenas a rota interna '/orchestrator/**' que ele espera.
+            - RewritePath=/api/gateway/(?<segment>.*), /api/$\{segment}
+
+        # ----------------------------------------------------------------------
+        # ROTAS DOS SERVIÇOS CORE (Endpoints definidos nos seus Controllers)
+        # ----------------------------------------------------------------------
+        # 2. Auth-Service (Controller: @RequestMapping("/auth"))
+        - id: auth-service
+          uri: lb://auth-service
+          predicates:
+            - Path=/auth/**
+
+        # 3. Professor-Service (Controller: @RequestMapping("/professores"))
+        - id: professor-service
+          uri: lb://professor-service
+          predicates:
+            - Path=/professores/**
+
+        # 4. Discipline-Service (Controller: @RequestMapping("/disciplinas"))
+        - id: discipline-service
+          uri: lb://disciplina-service # Assumindo que o nome do app é 'disciplina-service'
+          predicates:
+            - Path=/disciplinas/**
+
+        # 5. Bibliography-Service (Controller: @RequestMapping("/bibliografias"))
+        - id: bibliography-service
+          uri: lb://bibliography-service
+          predicates:
+            - Path=/bibliografias/**
+
+        # 6. Program-Service (Controller: @RequestMapping("/programas"))
+        - id: program-service
+          uri: lb://program-service
+          predicates:
+            - Path=/programas/**
+            - Path=/historico/** # Também roteia endpoints de /historico
+
+        # 7. Curriculum-Service (Controllers: Matrizes, Cursos, Matriz-Disciplina)
+        - id: curriculum-service
+          uri: lb://curriculum-service
+          predicates:
+            - Path=/cursos/**
+            - Path=/matrizes/**
+            - Path=/matriz-disciplina/**
+
+# 3. Registro no Eureka
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+  instance:
+    prefer-ip-address: true
